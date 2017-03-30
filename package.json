@@ -1,6 +1,6 @@
 {
   "name": "ab-neuter",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Neuter any Typed Array or ArrayBuffer",
   "main": "main.js",
   "repository": {
