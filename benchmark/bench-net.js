@@ -4,17 +4,16 @@ const fork = require('child_process').fork;
 const neuter = require('../main');
 const net = require('net');
 const port = parseInt(process.argv[2]);
-const child_list = [];
 const packet_size = 64 * 1024;
-let child_count = 4;
 
 if (!Number.isNaN(port)) {
   const data = Buffer.alloc(packet_size, Math.random().toString(36));
-  let packet_count = 300000;
+  let cntr = 0;
 
   const connection = net.connect(port, () => {
+    const start_time = Date.now();
     (function writeData() {
-      if (--packet_count <= 0) return connection.end(data);
+      if (Date.now() - start_time > 15000) return connection.end(data);
       connection.write(data, writeData);
     })();
   });
@@ -22,9 +21,11 @@ if (!Number.isNaN(port)) {
 }
 
 
-const should_neuter = !(process.argv[2] === 'no-neuter');
+const should_neuter = !(process.argv[2] === '--no-neuter');
 let bytes_read = 0;
 let packets_received = 0;
+let latest_timeout = null;
+let last_time = null;
 
 net.createServer((c) => {
   c.on('data', (chunk) => {
@@ -35,21 +36,25 @@ net.createServer((c) => {
   });
 }).listen(function() {
   const server_port = this.address().port;
-  for (var i = 0; i < child_count; i++) {
-    child_list.push(fork(__filename, [ server_port ]).on('close', () => {
-      if (--child_count === 0) this.close();
-    }));
-  }
-  setTimeout(printBytesRead, 3000);
+  fork(__filename, [ server_port ]).on('close', () => {
+    clearTimeout(latest_timeout);
+    this.close();
+  });
+  latest_timeout = setTimeout(printBytesRead, 3000);
+  last_time = process.hrtime();
 });
 
 
 function printBytesRead() {
   if (bytes_read <= 0) return;
-  prints(`${bytes_read / 1024} kB   ${packets_received} packets`);
+  const t = process.hrtime(last_time);
+  const sec = t[0] + t[1] / 1e9;
+  const gbit = ((bytes_read / 1024 / 1024 / 1024 * 8) / sec).toFixed(2);
+  prints(`${gbit} Gbit/sec   ${packets_received} packets`);
   bytes_read = 0;
   packets_received = 0;
-  setTimeout(printBytesRead, 3000);
+  latest_timeout = setTimeout(printBytesRead, 3000);
+  last_time = process.hrtime();
 }
 
 

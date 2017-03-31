@@ -2,9 +2,10 @@
 
 const neuter = require('../main');
 const net = require('net');
-const should_neuter = !(process.argv[2] === 'no-neuter');
+const should_neuter = !(process.argv[2] === '--no-neuter');
 let bytes_read = 0;
 let packets_received = 0;
+let last_time = null;
 
 
 net.createServer(function(c) {
@@ -15,14 +16,21 @@ net.createServer(function(c) {
     if (should_neuter) neuter(chunk);
   });
   c.on('close', () => this.close());
-}).listen(5001, () => setTimeout(printBytesRead, 3000).unref());
+}).listen(5001, () => {
+  setTimeout(printBytesRead, 3000).unref();
+  last_time = process.hrtime();
+});
 
 
 function printBytesRead() {
-  prints(`${Math.floor(bytes_read / 1024)} kB   ${packets_received} packets`);
+  const t = process.hrtime(last_time);
+  const sec = t[0] + t[1] / 1e9;
+  const gbit = ((bytes_read / 1024 / 1024 / 1024 * 8) / sec).toFixed(2);
+  prints(`${gbit} Gbit/sec   ${packets_received} packets`);
   bytes_read = 0;
   packets_received = 0;
   setTimeout(printBytesRead, 3000).unref();
+  last_time = process.hrtime();
 }
 
 
